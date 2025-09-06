@@ -1,10 +1,7 @@
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from datetime import datetime, timedelta, timezone
 from selenium.webdriver.common.by import By
-from selenium import webdriver
 from bs4 import BeautifulSoup
 import multiprocessing as mp
 from io import BytesIO
@@ -75,86 +72,275 @@ class HotScoreCalculator:
         return round(total_score, 2)
 
 def setup_driver():
-    """GitHub Actions 환경에 맞는 Chrome 설정"""
-    from selenium import webdriver
-    from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    
-    opts = Options()
-    opts.add_argument("--headless=new")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--disable-gpu")
-    opts.add_argument("--disable-extensions")
-    opts.add_argument("--disable-logging")
-    opts.add_argument("--disable-web-security")
-    opts.add_argument("--remote-debugging-port=9222")
-    opts.add_argument("--disable-background-timer-throttling")
-    opts.add_argument("--disable-renderer-backgrounding")
-    opts.add_argument("--disable-backgrounding-occluded-windows")
-    
-    # GitHub Actions에서 chromium 사용
-    opts.binary_location = "/usr/bin/chromium-browser"
-    
-    # 메모리 최적화
-    opts.add_argument("--memory-pressure-off")
-    opts.add_argument("--max_old_space_size=2048")
-    
-    service = Service()
-    driver = webdriver.Chrome(service=service, options=opts)
-    driver.set_page_load_timeout(30)
-    driver.implicitly_wait(10)
-    
-    return driver
-
-def upload_to_google_drive(df, filename, folder_id):
-    """Google Drive에 DataFrame을 CSV로 업로드"""
+    """GitHub Actions 환경에 최적화된 Chrome 설정 (Selenium 4.x 호환)"""
     try:
-        from googleapiclient.discovery import build
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.http import MediaIoBaseUpload
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
         
-        # 환경변수에서 Google 인증 정보 가져오기
-        credentials_json = os.environ.get('GOOGLE_CREDENTIALS')
-        if not credentials_json:
-            raise ValueError("GOOGLE_CREDENTIALS 환경변수가 설정되지 않았습니다")
+        # Chrome 옵션 설정
+        opts = Options()
+        
+        # 필수 헤드리스 옵션들
+        opts.add_argument("--headless=new")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--disable-extensions")
+        opts.add_argument("--disable-plugins")
+        opts.add_argument("--disable-images")
+        
+        # 안정성 향상 옵션들
+        opts.add_argument("--disable-web-security")
+        opts.add_argument("--disable-features=VizDisplayCompositor")
+        opts.add_argument("--disable-background-networking")
+        opts.add_argument("--disable-background-timer-throttling")
+        opts.add_argument("--disable-renderer-backgrounding")
+        opts.add_argument("--disable-backgrounding-occluded-windows")
+        opts.add_argument("--disable-client-side-phishing-detection")
+        opts.add_argument("--disable-crash-reporter")
+        opts.add_argument("--disable-oopr-debug-crash-dump")
+        opts.add_argument("--no-crash-upload")
+        opts.add_argument("--disable-low-res-tiling")
+        
+        # 메모리 최적화
+        opts.add_argument("--memory-pressure-off")
+        opts.add_argument("--max_old_space_size=2048")
+        opts.add_argument("--aggressive-cache-discard")
+        
+        # 네트워크 최적화
+        opts.add_argument("--disable-default-apps")
+        opts.add_argument("--disable-sync")
+        
+        # User Agent 설정
+        opts.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        
+        # 창 크기 설정
+        opts.add_argument("--window-size=1920,1080")
+        opts.add_argument("--start-maximized")
+        
+        # Selenium 4.x에서 로깅 설정 방법
+        opts.add_argument("--log-level=3")  # INFO = 0, WARNING = 1, ERROR = 2, FATAL = 3
+        opts.add_experimental_option('excludeSwitches', ['enable-logging'])
+        opts.add_experimental_option('useAutomationExtension', False)
+        
+        # GitHub Actions 환경 감지 및 Chrome 경로 설정
+        if os.environ.get('GITHUB_ACTIONS'):
+            logger.info("GitHub Actions 환경 감지됨")
             
-        credentials_info = json.loads(credentials_json)
-        credentials = Credentials.from_service_account_info(credentials_info)
+            # 가능한 Chrome 경로들 시도
+            chrome_paths = [
+                "/usr/bin/chromium-browser",
+                "/usr/bin/chromium",
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/opt/google/chrome/chrome"
+            ]
+            
+            chrome_found = False
+            for path in chrome_paths:
+                if os.path.exists(path):
+                    opts.binary_location = path
+                    logger.info(f"Chrome 경로 설정: {path}")
+                    chrome_found = True
+                    break
+            
+            if not chrome_found:
+                logger.error("Chrome 실행 파일을 찾을 수 없습니다")
+                raise FileNotFoundError("Chrome binary not found")
         
-        service = build('drive', 'v3', credentials=credentials)
+        # 서비스 설정 (ChromeDriver 경로 자동 감지)
+        try:
+            # Selenium Manager가 자동으로 ChromeDriver 다운로드하도록 함
+            service = Service()
+            logger.info("Selenium Manager를 통한 ChromeDriver 자동 설정")
+        except Exception as e:
+            logger.warning(f"Selenium Manager 실패: {e}")
+            # 수동으로 chromedriver 경로 찾기
+            chromedriver_paths = [
+                "/usr/bin/chromedriver",
+                "/usr/local/bin/chromedriver",
+                which("chromedriver")
+            ]
+            
+            for path in chromedriver_paths:
+                if path and os.path.exists(path):
+                    service = Service(executable_path=path)
+                    logger.info(f"ChromeDriver 경로 설정: {path}")
+                    break
+            else:
+                # 마지막 대안: Service() 기본값 사용
+                service = Service()
+                logger.info("기본 ChromeDriver 서비스 사용")
         
-        # DataFrame을 CSV로 변환
-        csv_buffer = BytesIO()
-        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
-        csv_buffer.write(csv_data.encode('utf-8-sig'))
-        csv_buffer.seek(0)
+        # WebDriver 생성 (desired_capabilities 제거)
+        try:
+            driver = webdriver.Chrome(
+                service=service, 
+                options=opts
+                # desired_capabilities 파라미터 제거됨
+            )
+            logger.info("Chrome WebDriver 생성 성공")
+            
+        except Exception as e:
+            logger.error(f"Chrome WebDriver 생성 실패: {e}")
+            # Firefox 대안 시도
+            logger.info("Firefox 대안 시도...")
+            return setup_firefox_driver()
         
-        file_metadata = {
-            'name': filename,
-            'parents': [folder_id]
-        }
+        # 타임아웃 설정
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(10)
+        driver.set_script_timeout(30)
         
-        media = MediaIoBaseUpload(
-            csv_buffer,
-            mimetype='text/csv',
-            resumable=True
-        )
+        # 창 크기 설정 확인
+        try:
+            driver.set_window_size(1920, 1080)
+        except:
+            pass
         
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id,name,webViewLink'
-        ).execute()
-        
-        logger.info(f"✅ Google Drive 업로드 성공: {filename}")
-        logger.info(f"🔗 파일 링크: {file.get('webViewLink')}")
-        
-        return file.get('id')
+        return driver
         
     except Exception as e:
-        logger.error(f"❌ Google Drive 업로드 실패: {e}")
+        logger.error(f"WebDriver 설정 실패: {e}")
         raise
+
+def setup_firefox_driver():
+    """Chrome 실패 시 Firefox 대안"""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.firefox.service import Service
+        from selenium.webdriver.firefox.options import Options
+        
+        logger.info("Firefox WebDriver 설정 중...")
+        
+        opts = Options()
+        opts.add_argument("--headless")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        
+        service = Service()
+        driver = webdriver.Firefox(service=service, options=opts)
+        
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(10)
+        
+        logger.info("Firefox WebDriver 생성 성공")
+        return driver
+        
+    except Exception as e:
+        logger.error(f"Firefox WebDriver 생성 실패: {e}")
+        raise
+
+def which(command):
+    """명령어 경로 찾기 (shutil.which 대안)"""
+    import subprocess
+    try:
+        result = subprocess.run(['which', command], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except:
+        pass
+    return None
+
+def upload_to_github_release(df, filename):
+    """GitHub Release에 CSV 파일 업로드"""    
+    try:
+        github_token = os.environ.get('GITHUB_TOKEN')
+        repo_owner = os.environ.get('REPO_OWNER')
+        repo_name = os.environ.get('REPO_NAME')
+        
+        # 환경변수 확인
+        if not github_token:
+            raise ValueError("GITHUB_TOKEN 환경변수가 필요합니다")
+        if not repo_owner:
+            raise ValueError("REPO_OWNER 환경변수가 필요합니다")  
+        if not repo_name:
+            raise ValueError("REPO_NAME 환경변수가 필요합니다")
+        
+        logger.info(f"GitHub Release 업로드: {repo_owner}/{repo_name}")
+        
+        headers = {
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        # 오늘 날짜로 릴리즈 태그 생성
+        today = datetime.now().strftime('%Y%m%d')
+        tag_name = f"data-{today}"
+        release_name = f"크롤링 데이터 {today}"
+        
+        # 기존 릴리즈 확인
+        release_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases/tags/{tag_name}"
+        response = requests.get(release_url, headers=headers)
+        
+        if response.status_code == 200:
+            # 기존 릴리즈 사용
+            release_data = response.json()
+            upload_url = release_data['upload_url'].replace('{?name,label}', '')
+            logger.info(f"기존 릴리즈 사용: {tag_name}")
+        else:
+            # 새 릴리즈 생성
+            logger.info(f"새 릴리즈 생성: {tag_name}")
+            create_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases"
+            
+            create_data = {
+                "tag_name": tag_name,
+                "name": release_name,
+                "body": f"자동 크롤링 데이터\\n\\n생성시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n게시글 수: {len(df)}개",
+                "draft": False,
+                "prerelease": False
+            }
+            
+            response = requests.post(create_url, headers=headers, json=create_data)
+            if response.status_code != 201:
+                raise Exception(f"릴리즈 생성 실패: {response.status_code} - {response.text}")
+            
+            release_data = response.json()
+            upload_url = release_data['upload_url'].replace('{?name,label}', '')
+        
+        # CSV 데이터 준비
+        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+        
+        # 파일 업로드
+        upload_headers = headers.copy()
+        upload_headers['Content-Type'] = 'text/csv'
+        
+        logger.info(f"파일 업로드 중: {filename}")
+        upload_response = requests.post(
+            f"{upload_url}?name={filename}",
+            headers=upload_headers,
+            data=csv_data.encode('utf-8-sig')
+        )
+        
+        if upload_response.status_code == 201:
+            file_data = upload_response.json()
+            download_url = file_data['browser_download_url']
+            
+            logger.info(f"✅ GitHub Release 업로드 성공: {filename}")
+            logger.info(f"🔗 다운로드 링크: {download_url}")
+            
+            return {
+                'success': True,
+                'download_url': download_url,
+                'release_url': release_data['html_url'],
+                'file_size': len(csv_data.encode('utf-8-sig'))
+            }
+        else:
+            raise Exception(f"파일 업로드 실패: {upload_response.status_code} - {upload_response.text}")
+            
+    except Exception as e:
+        logger.error(f"❌ GitHub Release 업로드 실패: {e}")
+        
+        # 백업: 로컬에 파일 저장 (GitHub Actions artifact)
+        logger.info("백업: 로컬에 파일 저장")
+        df.to_csv(filename, index=False, encoding='utf-8-sig')
+        
+        return {
+            'success': False,
+            'error': str(e),
+            'local_file': filename
+        }
 
 def is_today_post(date_str, target_date):
     """당일 게시물인지 확인 (시간 형태는 당일로 간주)"""
@@ -655,7 +841,7 @@ def crawl_theqoo_selenium(target_date):
         else:
             consecutive_empty_pages += 1
             
-            if consecutive_empty_pages >= 2:
+            if consecutive_empty_pages >= 3:
                 break
                 
             target_page += 1
@@ -806,16 +992,7 @@ def main_github_actions():
         yesterday = today_kst - timedelta(days=1)
         target_date = yesterday.strftime("%m%d")
         logger.info(f"📅 타겟 날짜: {target_date}")
-        
-        # 기존 크롤링 함수들을 import
-        from crawling import (
-            crawl_dcinside_requests,
-            crawl_fmkorea_selenium_simple,
-            crawl_theqoo_requests,
-            crawl_instiz_requests,
-            calculate_hot_scores
-        )
-        
+                
         # 각 사이트별 크롤링 실행
         all_results = {}
         hot_calc = HotScoreCalculator()
@@ -840,7 +1017,7 @@ def main_github_actions():
         
         logger.info("📊 더쿠 크롤링...")
         try:
-            theqoo_df = crawl_theqoo_requests(target_date)
+            theqoo_df = crawl_theqoo_selenium(target_date)
             all_results['더쿠'] = theqoo_df
             logger.info(f"✅ 더쿠: {len(theqoo_df)}개")
         except Exception as e:
@@ -884,7 +1061,7 @@ def main_github_actions():
         filename = f"community_crawling_{target_date}_{timestamp}.csv"
         
         # Google Drive에 업로드
-        file_id = upload_to_google_drive(final_df, filename, folder_id)
+        upload_result = upload_to_github_release(final_df, filename)
         
         # 결과 요약
         logger.info("🎉 크롤링 완료!")
@@ -910,7 +1087,7 @@ def main_github_actions():
         return {
             'success': True,
             'filename': filename,
-            'file_id': file_id,
+            'upload_result': upload_result,
             'total_count': len(final_df),
             'date': target_date,
             'site_stats': site_stats.to_dict()
@@ -926,6 +1103,8 @@ if __name__ == "__main__":
     if result['success']:
         print(f"✅ 크롤링 성공: {result['filename']}")
         print(f"📊 총 {result['total_count']}개 게시글")
+        if result['upload_result']['success']:
+            print(f"🔗 다운로드: {result['upload_result']['download_url']}")
     else:
         print(f"❌ 크롤링 실패: {result['error']}")
         sys.exit(1)

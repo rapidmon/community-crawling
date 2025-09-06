@@ -6,7 +6,7 @@
 
 import os
 from datetime import datetime
-from cloud_crawler import main_github_actions
+from main import main_github_actions
 
 def test_local():
     print("🧪 로컬 테스트 시작")

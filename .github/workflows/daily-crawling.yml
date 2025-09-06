@@ -16,7 +16,7 @@ on:
 jobs:
   crawl-communities:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # 30분 제한
+    timeout-minutes: 120  # 45분으로 증가
     
     steps:
     - name: Checkout repository
@@ -33,7 +33,58 @@ jobs:
         sudo apt-get install -y \
           chromium-browser \
           chromium-chromedriver \
-          xvfb
+          firefox \
+          firefox-geckodriver \
+          xvfb \
+          wget \
+          unzip
+        
+        # Chrome 설치 확인 및 추가 설치
+        if ! command -v google-chrome &> /dev/null; then
+          echo "Google Chrome 추가 설치..."
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+        fi
+        
+    - name: Verify browser installations
+      run: |
+        echo "=== Browser 설치 확인 ==="
+        
+        # Chromium 확인
+        if command -v chromium-browser &> /dev/null; then
+          echo "✅ Chromium: $(which chromium-browser)"
+          chromium-browser --version
+        else
+          echo "❌ Chromium not found"
+        fi
+        
+        # Google Chrome 확인
+        if command -v google-chrome &> /dev/null; then
+          echo "✅ Google Chrome: $(which google-chrome)"
+          google-chrome --version
+        else
+          echo "❌ Google Chrome not found"
+        fi
+        
+        # ChromeDriver 확인
+        if command -v chromedriver &> /dev/null; then
+          echo "✅ ChromeDriver: $(which chromedriver)"
+          chromedriver --version
+        else
+          echo "❌ ChromeDriver not found"
+        fi
+        
+        # Firefox 확인
+        if command -v firefox &> /dev/null; then
+          echo "✅ Firefox: $(which firefox)"
+          firefox --version
+        fi
+        
+        echo "=== 사용 가능한 브라우저 경로 ==="
+        ls -la /usr/bin/*chrome* || true
+        ls -la /usr/bin/*firefox* || true
         
     - name: Cache Python dependencies
       uses: actions/cache@v3
@@ -53,27 +104,69 @@ jobs:
         mkdir -p logs
         mkdir -p temp
         
-    - name: Check Chrome installation
+    - name: Setup virtual display
       run: |
-        which chromium-browser
-        chromium-browser --version
-        which chromedriver
-        chromedriver --version
+        # 가상 디스플레이 시작
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+        sleep 3
+        
+        # 디스플레이 확인
+        echo "Display: $DISPLAY"
+        
+    - name: Test Chrome connection
+      env:
+        DISPLAY: :99
+      run: |
+        python3 -c "
+        import os
+        os.environ['DISPLAY'] = ':99'
+        
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        
+        opts = Options()
+        opts.add_argument('--headless=new')
+        opts.add_argument('--no-sandbox')
+        opts.add_argument('--disable-dev-shm-usage')
+        
+        # Chrome 경로 시도
+        chrome_paths = [
+            '/usr/bin/chromium-browser',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable'
+        ]
+        
+        for path in chrome_paths:
+            if os.path.exists(path):
+                print(f'Chrome 경로 시도: {path}')
+                try:
+                    opts.binary_location = path
+                    service = Service()
+                    driver = webdriver.Chrome(service=service, options=opts)
+                    driver.get('https://www.google.com')
+                    print(f'✅ Chrome 연결 성공: {path}')
+                    print(f'페이지 제목: {driver.title}')
+                    driver.quit()
+                    break
+                except Exception as e:
+                    print(f'❌ Chrome 연결 실패 ({path}): {e}')
+        "
         
     - name: Run web crawler
       env:
-        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO_OWNER: ${{ secrets.REPO_OWNER }}
+        REPO_NAME: ${{ secrets.REPO_NAME }}
         PYTHONPATH: ${{ github.workspace }}
         DISPLAY: :99
+        GITHUB_ACTIONS: "true"
       run: |
-        # 가상 디스플레이 시작
-        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        echo "크롤링 시작..."
+        python main.py
         
-        # 크롤링 실행
-        python cloud_crawler.py
-        
-    - name: Upload logs if failed
+    - name: Upload logs on failure
       if: failure()
       uses: actions/upload-artifact@v3
       with:
@@ -83,12 +176,25 @@ jobs:
           *.log
         retention-days: 7
         
+    - name: Upload debug info on failure
+      if: failure()
+      run: |
+        echo "=== 디버그 정보 ==="
+        echo "현재 디렉토리: $(pwd)"
+        echo "파일 목록:"
+        ls -la
+        echo "환경변수:"
+        env | grep -E "(DISPLAY|CHROME|SELENIUM)" || true
+        echo "프로세스 목록:"
+        ps aux | grep -E "(chrome|firefox|Xvfb)" || true
+        
     - name: Send notification on failure
       if: failure()
       run: |
-        echo "크롤링이 실패했습니다. 로그를 확인해주세요."
+        echo "❌ 크롤링이 실패했습니다."
         echo "실행 번호: ${{ github.run_number }}"
         echo "실행 시간: $(date)"
+        echo "로그를 확인해주세요."
         
     - name: Send success notification
       if: success()
