@@ -1,0 +1,97 @@
+name: Daily Community Crawling
+
+on:
+  schedule:
+    # 매일 오전 10시 (KST) = UTC 1시
+    - cron: '0 1 * * *'
+  
+  # 수동 실행도 가능하게
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: '크롤링할 날짜 (MMDD 형식, 예: 0815)'
+        required: false
+        default: ''
+
+jobs:
+  crawl-communities:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # 30분 제한
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          chromium-browser \
+          chromium-chromedriver \
+          xvfb
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create required directories
+      run: |
+        mkdir -p logs
+        mkdir -p temp
+        
+    - name: Check Chrome installation
+      run: |
+        which chromium-browser
+        chromium-browser --version
+        which chromedriver
+        chromedriver --version
+        
+    - name: Run web crawler
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        PYTHONPATH: ${{ github.workspace }}
+        DISPLAY: :99
+      run: |
+        # 가상 디스플레이 시작
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        
+        # 크롤링 실행
+        python cloud_crawler.py
+        
+    - name: Upload logs if failed
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: crawling-logs-${{ github.run_number }}
+        path: |
+          logs/
+          *.log
+        retention-days: 7
+        
+    - name: Send notification on failure
+      if: failure()
+      run: |
+        echo "크롤링이 실패했습니다. 로그를 확인해주세요."
+        echo "실행 번호: ${{ github.run_number }}"
+        echo "실행 시간: $(date)"
+        
+    - name: Send success notification
+      if: success()
+      run: |
+        echo "✅ 크롤링이 성공적으로 완료되었습니다!"
+        echo "실행 시간: $(date)"
