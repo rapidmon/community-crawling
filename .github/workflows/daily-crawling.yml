@@ -156,7 +156,7 @@ jobs:
         
     - name: Run web crawler
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        G_TOKEN: ${{ secrets.G_TOKEN }}
         REPO_OWNER: ${{ secrets.REPO_OWNER }}
         REPO_NAME: ${{ secrets.REPO_NAME }}
         PYTHONPATH: ${{ github.workspace }}

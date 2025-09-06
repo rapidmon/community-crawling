@@ -246,7 +246,7 @@ def which(command):
 def upload_to_github_release(df, filename):
     """GitHub Release에 CSV 파일 업로드"""    
     try:
-        github_token = os.environ.get('GITHUB_TOKEN')
+        github_token = os.environ.get('G_TOKEN')
         repo_owner = os.environ.get('REPO_OWNER')
         repo_name = os.environ.get('REPO_NAME')
         
