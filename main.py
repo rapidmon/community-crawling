@@ -184,10 +184,7 @@ def setup_driver():
             
         except Exception as e:
             logger.error(f"Chrome WebDriver 생성 실패: {e}")
-            # Firefox 대안 시도
-            logger.info("Firefox 대안 시도...")
-            return setup_firefox_driver()
-        
+
         # 타임아웃 설정
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
@@ -203,33 +200,6 @@ def setup_driver():
         
     except Exception as e:
         logger.error(f"WebDriver 설정 실패: {e}")
-        raise
-
-def setup_firefox_driver():
-    """Chrome 실패 시 Firefox 대안"""
-    try:
-        from selenium import webdriver
-        from selenium.webdriver.firefox.service import Service
-        from selenium.webdriver.firefox.options import Options
-        
-        logger.info("Firefox WebDriver 설정 중...")
-        
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        
-        service = Service()
-        driver = webdriver.Firefox(service=service, options=opts)
-        
-        driver.set_page_load_timeout(30)
-        driver.implicitly_wait(10)
-        
-        logger.info("Firefox WebDriver 생성 성공")
-        return driver
-        
-    except Exception as e:
-        logger.error(f"Firefox WebDriver 생성 실패: {e}")
         raise
 
 def which(command):
