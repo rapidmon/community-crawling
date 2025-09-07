@@ -952,11 +952,6 @@ def main_github_actions():
     try:
         logger.info("🚀 GitHub Actions 크롤링 시작")
         
-        # 환경변수 확인
-        folder_id = os.environ.get('GOOGLE_DRIVE_FOLDER_ID')
-        if not folder_id:
-            raise ValueError("GOOGLE_DRIVE_FOLDER_ID 환경변수가 설정되지 않았습니다")
-        
         # 타겟 날짜 설정
         today_kst = datetime.now(KST).date()
         yesterday = today_kst - timedelta(days=1)
