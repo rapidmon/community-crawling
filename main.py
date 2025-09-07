@@ -1025,7 +1025,6 @@ def main_github_actions():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
         filename = f"community_crawling_{target_date}_{timestamp}.csv"
         
-        # Google Drive에 업로드
         upload_result = upload_to_github_release(final_df, filename)
         
         # 결과 요약

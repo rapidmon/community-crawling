@@ -5,31 +5,41 @@
 '''
 
 import os
-from datetime import datetime
 from main import main_github_actions
 
 def test_local():
     print("🧪 로컬 테스트 시작")
     
-    # 환경변수 확인
-    if not os.environ.get('GOOGLE_CREDENTIALS'):
-        print("❌ GOOGLE_CREDENTIALS 환경변수가 설정되지 않았습니다")
-        print("service-account-key.json 파일을 만들고 다음 명령어를 실행하세요:")
-        print("export GOOGLE_CREDENTIALS=$(cat service-account-key.json)")
-        return
+    # GitHub 환경변수 확인
+    required_vars = ['GITHUB_TOKEN', 'REPO_OWNER', 'REPO_NAME']
+    missing_vars = []
     
-    if not os.environ.get('GOOGLE_DRIVE_FOLDER_ID'):
-        print("❌ GOOGLE_DRIVE_FOLDER_ID 환경변수가 설정되지 않았습니다")
-        print("export GOOGLE_DRIVE_FOLDER_ID='your-folder-id'")
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        print(f"❌ 누락된 환경변수: {', '.join(missing_vars)}")
+        print("\n환경변수 설정 방법:")
+        print("export GITHUB_TOKEN='your_token_here'")
+        print("export REPO_OWNER='your_username'")
+        print("export REPO_NAME='your_repo_name'")
         return
     
     # 테스트 실행
+    print("환경변수 확인 완료, 크롤링 시작...")
     result = main_github_actions()
     
     if result['success']:
         print(f"✅ 테스트 성공!")
         print(f"파일: {result['filename']}")
         print(f"게시글 수: {result['total_count']}")
+        
+        if result['upload_result']['success']:
+            print(f"📤 GitHub Release 업로드 성공")
+            print(f"🔗 다운로드: {result['upload_result']['download_url']}")
+        else:
+            print(f"📁 로컬 저장: {result['upload_result'].get('local_file')}")
     else:
         print(f"❌ 테스트 실패: {result['error']}")
 

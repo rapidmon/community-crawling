@@ -89,7 +89,7 @@ def create_readme():
     """README.md 파일 생성"""
     readme_content = """# 커뮤니티 크롤링 자동화
 
-매일 오전 10시에 자동으로 한국 주요 커뮤니티를 크롤링하여 Google Drive에 저장하는 시스템입니다.
+매일 오전 10시에 자동으로 한국 주요 커뮤니티를 크롤링하여 GitHub Release에 저장하는 시스템입니다.
 
 ## 🎯 대상 사이트
 - 디시인사이드 (베스트)
@@ -99,42 +99,61 @@ def create_readme():
 
 ## 🚀 특징
 - GitHub Actions를 이용한 완전 자동화
-- 화제성 점수 자동 계산
-- 게시글 카테고리 자동 분류
-- Google Drive 자동 업로드
+- 화제성 점수 자동 계산 (0-11점)
+- GitHub Release 자동 업로드
 - 매일 오전 10시 자동 실행
+- 완전 무료 운영
 
 ## 📊 수집 데이터
 - 제목, URL, 작성일
 - 조회수, 댓글수
 - 화제성 점수 (0-11점)
-- 예상 카테고리 (정치, 경제, 스포츠 등)
+- 출처 사이트
 
 ## 🛠️ 설정 방법
 
-### 1. Google Drive API 설정
-1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성
-2. Google Drive API 활성화
-3. 서비스 계정 생성 및 JSON 키 다운로드
-4. Google Drive 폴더 생성 후 서비스 계정과 공유
+### 1. GitHub Personal Access Token 생성
+1. GitHub.com → Settings → Developer settings
+2. Personal access tokens → Tokens (classic)
+3. Generate new token (classic)
+4. 권한 선택: `repo`, `workflow`
+5. 토큰 복사 (한 번만 표시됨!)
 
 ### 2. GitHub Secrets 설정
-- `GOOGLE_CREDENTIALS`: 서비스 계정 JSON 키 전체 내용
-- `GOOGLE_DRIVE_FOLDER_ID`: Google Drive 폴더 ID
+리포지토리 → Settings → Secrets and variables → Actions에서 추가:
+- `GITHUB_TOKEN`: 생성한 Personal Access Token
+- `REPO_OWNER`: GitHub 사용자명
+- `REPO_NAME`: 리포지토리명
 
 ### 3. 실행
-자동 실행: 매일 오전 10시 KST
-수동 실행: GitHub Actions 탭에서 "Run workflow" 클릭
+- **자동 실행**: 매일 오전 10시 KST
+- **수동 실행**: GitHub Actions 탭 → "Run workflow" 클릭
 
 ## 📈 결과 확인
-- GitHub Actions 탭에서 실행 로그 확인
-- Google Drive에서 CSV 파일 다운로드
+1. **GitHub Actions**: 실행 로그 확인
+2. **Releases 탭**: 새로운 릴리즈와 CSV 파일 다운로드
+3. **파일명 형식**: `community_crawling_MMDD_HHMM.csv`
+
+## 📂 데이터 위치
+- 리포지토리 → **Releases** 탭
+- 릴리즈명: `data-YYYYMMDD` 형식
+- CSV 파일 직접 다운로드 가능
 
 ## 🔧 문제해결
 실행이 실패할 경우:
 1. GitHub Actions 로그 확인
-2. Google Drive API 권한 확인
-3. 서비스 계정 키 유효성 확인
+2. GitHub Token 권한 확인
+3. 환경변수 설정 확인
+
+## 💰 비용
+- **GitHub Actions**: 무료 (월 2,000분 제공)
+- **GitHub Releases**: 무료 (무제한)
+- **총 운영비용**: 0원
+
+## 📋 수집 통계
+- 평균 800-1000개 게시글/일
+- 사이트별 화제성 점수 분석
+- 고화제성 게시글(5.5점 이상) 필터링
 
 ---
 Made with ❤️ by Python & GitHub Actions
@@ -148,9 +167,7 @@ Made with ❤️ by Python & GitHub Actions
 def check_dependencies():
     """필수 파일들이 있는지 확인"""
     required_files = [
-        'bsmain.py',
-        'simple.py',
-        'train.csv'
+        'main.py'  # 통합된 파일
     ]
     
     missing_files = []
@@ -160,7 +177,7 @@ def check_dependencies():
     
     if missing_files:
         print(f"⚠️ 누락된 파일들: {', '.join(missing_files)}")
-        print("이 파일들을 프로젝트 루트에 복사해주세요.")
+        print("main.py 파일을 프로젝트 루트에 복사해주세요.")
         return False
     else:
         print("✅ 모든 필수 파일 확인됨")
@@ -175,31 +192,41 @@ def create_test_script():
 '''
 
 import os
-from datetime import datetime
-from cloud_crawler import main_github_actions
+from main import main_github_actions
 
 def test_local():
     print("🧪 로컬 테스트 시작")
     
-    # 환경변수 확인
-    if not os.environ.get('GOOGLE_CREDENTIALS'):
-        print("❌ GOOGLE_CREDENTIALS 환경변수가 설정되지 않았습니다")
-        print("service-account-key.json 파일을 만들고 다음 명령어를 실행하세요:")
-        print("export GOOGLE_CREDENTIALS=$(cat service-account-key.json)")
-        return
+    # GitHub 환경변수 확인
+    required_vars = ['GITHUB_TOKEN', 'REPO_OWNER', 'REPO_NAME']
+    missing_vars = []
     
-    if not os.environ.get('GOOGLE_DRIVE_FOLDER_ID'):
-        print("❌ GOOGLE_DRIVE_FOLDER_ID 환경변수가 설정되지 않았습니다")
-        print("export GOOGLE_DRIVE_FOLDER_ID='your-folder-id'")
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        print(f"❌ 누락된 환경변수: {', '.join(missing_vars)}")
+        print("\\n환경변수 설정 방법:")
+        print("export GITHUB_TOKEN='your_token_here'")
+        print("export REPO_OWNER='your_username'")
+        print("export REPO_NAME='your_repo_name'")
         return
     
     # 테스트 실행
+    print("환경변수 확인 완료, 크롤링 시작...")
     result = main_github_actions()
     
     if result['success']:
         print(f"✅ 테스트 성공!")
         print(f"파일: {result['filename']}")
         print(f"게시글 수: {result['total_count']}")
+        
+        if result['upload_result']['success']:
+            print(f"📤 GitHub Release 업로드 성공")
+            print(f"🔗 다운로드: {result['upload_result']['download_url']}")
+        else:
+            print(f"📁 로컬 저장: {result['upload_result'].get('local_file')}")
     else:
         print(f"❌ 테스트 실패: {result['error']}")
 
@@ -218,27 +245,36 @@ def show_next_steps():
     print("🎉 초기 설정이 완료되었습니다!")
     print("="*60)
     print("\n📋 다음 단계:")
-    print("1. Google Cloud Console에서 서비스 계정 생성")
-    print("2. Google Drive 폴더 생성 및 공유")
-    print("3. GitHub 리포지토리 생성")
-    print("4. 코드를 GitHub에 푸시")
-    print("5. GitHub Secrets 설정:")
-    print("   - GOOGLE_CREDENTIALS")
-    print("   - GOOGLE_DRIVE_FOLDER_ID")
-    print("6. GitHub Actions에서 테스트 실행")
-    
-    print("\n🔧 로컬 테스트:")
-    print("1. service-account-key.json 파일 준비")
-    print("2. 환경변수 설정:")
-    print("   export GOOGLE_CREDENTIALS=$(cat service-account-key.json)")
-    print("   export GOOGLE_DRIVE_FOLDER_ID='your-folder-id'")
-    print("3. python test_local.py")
-    
-    print("\n📖 자세한 내용은 README.md 파일을 참고하세요!")
+    print("1. GitHub Personal Access Token 생성")
+    print("   - GitHub.com → Settings → Developer settings")
+    print("   - Personal access tokens → Generate new token")
+    print("   - 권한: repo, workflow")
+    print()
+    print("2. GitHub Secrets 설정:")
+    print("   - GITHUB_TOKEN: 생성한 토큰")
+    print("   - REPO_OWNER: GitHub 사용자명")
+    print("   - REPO_NAME: 리포지토리명")
+    print()
+    print("3. GitHub 리포지토리 생성 및 코드 푸시")
+    print("4. GitHub Actions에서 테스트 실행")
+    print()
+    print("🔧 로컬 테스트:")
+    print("1. 환경변수 설정:")
+    print("   export GITHUB_TOKEN='your_token'")
+    print("   export REPO_OWNER='your_username'")
+    print("   export REPO_NAME='your_repo'")
+    print("2. python test_local.py")
+    print()
+    print("📈 결과 확인:")
+    print("- GitHub 리포지토리 → Releases 탭")
+    print("- 매일 오전 10시 자동 실행")
+    print("- CSV 파일 직접 다운로드")
+    print()
+    print("📖 자세한 내용은 README.md 파일을 참고하세요!")
 
 def main():
-    print("🚀 커뮤니티 크롤링 자동화 시스템 설정")
-    print("="*50)
+    print("🚀 커뮤니티 크롤링 자동화 시스템 설정 (GitHub Release)")
+    print("="*60)
     
     # 1. 프로젝트 구조 생성
     create_project_structure()
