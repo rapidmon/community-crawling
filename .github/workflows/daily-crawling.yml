@@ -168,7 +168,7 @@ jobs:
         
     - name: Upload logs on failure
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: crawling-logs-${{ github.run_number }}
         path: |
