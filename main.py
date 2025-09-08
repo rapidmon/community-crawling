@@ -961,15 +961,15 @@ def main_github_actions():
         # 각 사이트별 크롤링 실행
         all_results = {}
         hot_calc = HotScoreCalculator()
-        
-        logger.info("📊 디시인사이드 크롤링...")
+
+        logger.info("📊 인스티즈 크롤링...")
         try:
-            dc_df = crawl_dcinside_requests(target_date)
-            all_results['디시인사이드'] = dc_df
-            logger.info(f"✅ 디시인사이드: {len(dc_df)}개")
+            instiz_df = crawl_instiz_requests(target_date)
+            all_results['인스티즈'] = instiz_df
+            logger.info(f"✅ 인스티즈: {len(instiz_df)}개")
         except Exception as e:
-            logger.error(f"❌ 디시인사이드 실패: {e}")
-            all_results['디시인사이드'] = pd.DataFrame()
+            logger.error(f"❌ 인스티즈 실패: {e}")
+            all_results['인스티즈'] = pd.DataFrame()
         
         logger.info("📊 FM코리아 크롤링...")
         try:
@@ -979,6 +979,15 @@ def main_github_actions():
         except Exception as e:
             logger.error(f"❌ FM코리아 실패: {e}")
             all_results['FM코리아'] = pd.DataFrame()
+
+        logger.info("📊 디시인사이드 크롤링...")
+        try:
+            dc_df = crawl_dcinside_requests(target_date)
+            all_results['디시인사이드'] = dc_df
+            logger.info(f"✅ 디시인사이드: {len(dc_df)}개")
+        except Exception as e:
+            logger.error(f"❌ 디시인사이드 실패: {e}")
+            all_results['디시인사이드'] = pd.DataFrame()
         
         logger.info("📊 더쿠 크롤링...")
         try:
@@ -988,15 +997,6 @@ def main_github_actions():
         except Exception as e:
             logger.error(f"❌ 더쿠 실패: {e}")
             all_results['더쿠'] = pd.DataFrame()
-        
-        logger.info("📊 인스티즈 크롤링...")
-        try:
-            instiz_df = crawl_instiz_requests(target_date)
-            all_results['인스티즈'] = instiz_df
-            logger.info(f"✅ 인스티즈: {len(instiz_df)}개")
-        except Exception as e:
-            logger.error(f"❌ 인스티즈 실패: {e}")
-            all_results['인스티즈'] = pd.DataFrame()
         
         # 화제성 점수 계산
         logger.info("🔥 화제성 점수 계산...")
