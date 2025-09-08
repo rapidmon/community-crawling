@@ -426,11 +426,10 @@ def crawl_dcinside_requests(target_date):
                         results.append({
                             'title': title,
                             'url': post_url,
-                            'date': date,
                             'source': '디시인사이드',
-                            'content': '',  # requests 방식에서는 본문 없음
                             'views': view,
-                            'comments': comment
+                            'comments': comment,
+                            'date': date,
                         })
                         
                     except Exception as e:
@@ -625,11 +624,10 @@ def crawl_fmkorea_selenium_simple(target_date):
                 results.append({
                     'title': clean_title,
                     'url': post_url,
-                    'date': date_text,
                     'source': 'FM코리아',
-                    'content': '',
                     'views': views,
-                    'comments': comments
+                    'comments': comments,
+                    'date': date_text,
                 })
             except Exception:
                 continue
@@ -766,11 +764,10 @@ def crawl_theqoo_selenium(target_date):
                             page_results.append({
                                 'title': title_text,
                                 'url': post_url,
-                                'date': date_text,
                                 'source': '더쿠',
-                                'content': '',
                                 'views': views,
-                                'comments': comments
+                                'comments': comments,
+                                'date': date_text,
                             })
                             
                         except Exception as e:
@@ -897,11 +894,10 @@ def crawl_instiz_requests(target_date):
                     page_results.append({
                         'title': title,
                         'url': post_url,
-                        'date': date,
                         'source': '인스티즈',
-                        'content': '',  # requests 방식에서는 본문 없음
                         'views': views,
-                        'comments': comments
+                        'comments': comments,
+                        'date': date,
                     })
                     
                 except Exception:
